@@ -329,13 +329,65 @@ main {
   transform: translateY(0);
 }
 
+.stack {
+  display: grid;
+  gap: 18px;
+}
+
+.season-banner {
+  display: grid;
+  gap: 6px;
+}
+
+.season-forms {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 6px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+  font-size: 14px;
+}
+
+.table th {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 @media (max-width: 980px) {
   .stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .grid {
+  .grid,
+  .season-forms,
+  .grid-2 {
     grid-template-columns: 1fr;
+  }
+
+  .table {
+    display: block;
+    overflow-x: auto;
   }
 }
 

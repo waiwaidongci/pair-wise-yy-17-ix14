@@ -1,6 +1,7 @@
 const state = {
   config: null,
   db: {},
+  overview: null,
   activeTab: ''
 };
 
@@ -66,6 +67,11 @@ function optionList(items, labelFields) {
     const label = labelFields.map((field) => item[field]).filter(Boolean).join(' / ');
     return `<option value="${item.id}">${escapeHtml(label)}</option>`;
   }).join('');
+}
+
+function siteOptions() {
+  const sites = [...(state.db.sites || [])].sort((a, b) => String(a.pointCode).localeCompare(String(b.pointCode), 'zh'));
+  return sites.map((site) => `<option value="${site.id}">${escapeHtml([site.cave, site.zone, site.pointCode].filter(Boolean).join(' / '))}</option>`).join('');
 }
 
 function formField(field) {
@@ -203,28 +209,164 @@ function renderCrudView(view) {
   </section>`;
 }
 
+// ---------- 季节平台视图：路线、待校准清单、履历均由 /api/season/overview 派生 ----------
+
+function renderRoutePanel(route) {
+  const rows = route.sites.map((site) => {
+    const sealHtml = site.sealState === '未封存'
+      ? `<span class="meta">未封存</span>${site.sealBlockers.length ? `<div class="meta">${site.sealBlockers.map(escapeHtml).join('；')}</div>` : ''}`
+      : pill(site.sealState, toneFor(site.sealState));
+    const recheckHtml = `${pill(site.recheckStatus, toneFor(site.recheckStatus))}<div class="meta">${escapeHtml(site.recheckNote)}</div>`;
+    const logs = site.rechecks.map((entry) => `${escapeHtml(entry.surveyor)}｜${fmtDate(entry.measuredAt)}｜${entry.temperature}℃ / ${entry.humidity}% / ${entry.co2}ppm`).join('<br>') || '—';
+    return `<tr>
+      <td><strong>${escapeHtml(site.pointCode)}</strong><br><span class="meta">${escapeHtml(site.cave)} ${escapeHtml(site.zone)}</span></td>
+      <td>${pill(site.protectedStatus, toneFor(site.protectedStatus))}</td>
+      <td>${sealHtml}</td>
+      <td>${recheckHtml}</td>
+      <td class="meta">${logs}</td>
+    </tr>`;
+  }).join('');
+  const reopen = route.reopen;
+  const canReopen = !reopen && route.reopenBlockers.length === 0;
+  const reopenNote = reopen
+    ? `${fmtDate(reopen.createdAt)} 复开，覆盖 ${reopen.siteCount} 个样点`
+    : route.reopenBlockers.length
+      ? `不得复开：${route.reopenBlockers.map(escapeHtml).join('；')}`
+      : '全部样点复测合格，可复开';
+  return `<div class="panel">
+    <div class="card-head"><h2>${escapeHtml(route.route)}</h2>${reopen ? pill('已复开', 'ok') : pill('未复开', 'warn')}</div>
+    <table class="table">
+      <thead><tr><th>样点</th><th>保护状态</th><th>封存</th><th>开季复测</th><th>复测记录</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="actions">
+      <button data-reopen-route="${escapeHtml(route.route)}" ${canReopen ? '' : 'disabled'}>${reopen ? '本季已复开' : '路线复开'}</button>
+      <span class="meta">${reopenNote}</span>
+    </div>
+  </div>`;
+}
+
+function renderCalibrations(overview) {
+  if (!overview.calibrations.length) return '<div class="empty">暂无校准事项</div>';
+  return overview.calibrations.map((item) => `<article class="card">
+    <div class="card-head"><h3>${escapeHtml(item.siteLabel)}</h3>${pill(item.status, toneFor(item.status))}</div>
+    <div class="meta">${escapeHtml(item.route)} · ${escapeHtml(item.season)}</div>
+    <p>${item.reasons.map(escapeHtml).join('；')}</p>
+    ${historyHtml(item)}
+  </article>`).join('');
+}
+
+function renderSeals(overview) {
+  if (!overview.seals.length) return '<div class="empty">暂无封存单</div>';
+  return overview.seals.map((item) => `<article class="card">
+    <div class="card-head"><h3>${escapeHtml(item.siteLabel)}</h3>${pill(item.status, toneFor(item.status))}</div>
+    <div class="meta">${escapeHtml(item.route)} · ${escapeHtml(item.season)}${item.note ? ' · ' + escapeHtml(item.note) : ''}</div>
+    ${historyHtml(item)}
+  </article>`).join('');
+}
+
+function renderFeed(overview) {
+  if (!overview.history.length) return '<div class="empty">暂无履历</div>';
+  return overview.history.map((entry) => `
+    <div class="history-item"><span>${fmtDate(entry.at)}</span><span>[${escapeHtml(entry.entity)}] ${escapeHtml(entry.label)}｜${escapeHtml(entry.action)}${entry.note ? '：' + escapeHtml(entry.note) : ''}</span></div>
+  `).join('');
+}
+
+function renderSeasonView(view) {
+  const overview = state.overview;
+  if (!overview) return `<section class="view" id="${view.id}"><div class="empty">季节数据加载中…</div></section>`;
+  const t = overview.thresholds;
+  const nowLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  return `<section class="view" id="${view.id}">
+    <div class="stack">
+      <div class="panel season-banner">
+        <strong>当前季节：${escapeHtml(overview.season)}</strong>
+        <span class="meta">封存：每样点每季仅一张封存单，并发只认首单；暂停开放或本季巡测缺项不得封存。复开：路线内每点须两名不同人员各测一次、间隔≥${t.gapHours}小时；温差>${t.tempDiff}℃、湿度差>${t.humidityDiff}个百分点或CO2增量>${t.co2Rise}ppm 只转待校准，整条路线不得复开。修订基准或撤回巡测，原结论失效。</span>
+      </div>
+      ${overview.routes.map(renderRoutePanel).join('') || '<div class="empty">暂无路线</div>'}
+      <div class="season-forms">
+        <form class="panel" data-season-form="seal">
+          <h2>办理季末封存</h2>
+          <div class="form-grid">
+            <label class="wide">样点<select name="siteId" required>${siteOptions()}</select></label>
+            <label class="wide">备注<textarea name="note" placeholder="本季巡测已补齐，办理封存"></textarea></label>
+          </div>
+          <div class="actions"><button>提交封存单</button></div>
+        </form>
+        <form class="panel" data-season-form="recheck">
+          <h2>登记开季复测</h2>
+          <div class="form-grid">
+            <label class="wide">样点<select name="siteId" required>${siteOptions()}</select></label>
+            <label>复测人员<input name="surveyor" required></label>
+            <label>复测时间<input type="datetime-local" name="measuredAt" value="${nowLocal}" required></label>
+            <label>温度 ℃<input type="number" step="0.1" name="temperature" required></label>
+            <label>湿度 %<input type="number" step="0.1" name="humidity" required></label>
+            <label>CO2 ppm<input type="number" step="1" name="co2" required></label>
+            <label class="wide">备注<textarea name="note" placeholder="仪器编号、校准情况等"></textarea></label>
+          </div>
+          <div class="actions"><button>保存复测</button></div>
+        </form>
+        <form class="panel" data-season-form="baseline">
+          <h2>修订基准</h2>
+          <div class="form-grid">
+            <label class="wide">样点<select name="siteId" required>${siteOptions()}</select></label>
+            <label>基准温度 ℃<input type="number" step="0.1" name="baselineTemp" required></label>
+            <label>基准湿度 %<input type="number" step="0.1" name="baselineHumidity" required></label>
+            <label>基准CO2 ppm<input type="number" step="1" name="baselineCo2" required></label>
+            <label class="wide">修订说明<textarea name="note" placeholder="修订后原封存结论失效"></textarea></label>
+          </div>
+          <div class="actions"><button class="danger">提交基准修订</button></div>
+        </form>
+      </div>
+      <div class="grid-2">
+        <div class="panel"><h2>待校准清单</h2><div class="list">${renderCalibrations(overview)}</div></div>
+        <div class="panel"><h2>封存单</h2><div class="list">${renderSeals(overview)}</div></div>
+      </div>
+      <div class="panel"><h2>履历</h2><div class="history">${renderFeed(overview)}</div></div>
+    </div>
+  </section>`;
+}
+
 function render() {
   $('#title').textContent = state.config.title;
   document.title = state.config.title;
   $('#lede').textContent = state.config.lede;
-  $('#main').innerHTML = state.config.views.map((view) => view.type === 'dashboard' ? renderDashboardView(view) : renderCrudView(view)).join('');
+  $('#main').innerHTML = state.config.views.map((view) => {
+    if (view.type === 'dashboard') return renderDashboardView(view);
+    if (view.type === 'season') return renderSeasonView(view);
+    return renderCrudView(view);
+  }).join('');
   setTab(state.activeTab || state.config.views[0].id);
 }
 
 async function load() {
-  state.db = await api('/api/db');
+  const [db, overview] = await Promise.all([api('/api/db'), api('/api/season/overview')]);
+  state.db = db;
+  state.overview = overview;
   render();
 }
 
 document.addEventListener('click', async (event) => {
   const tab = event.target.closest('.tab');
   const action = event.target.closest('[data-action]');
+  const reopenBtn = event.target.closest('[data-reopen-route]');
   if (tab) setTab(tab.dataset.tab);
   if (action) {
+    const def = state.config.actions.find((entry) => entry.id === action.dataset.action);
+    const url = def && def.endpoint ? `${def.endpoint}/${action.dataset.id}` : `/api/action/${action.dataset.action}/${action.dataset.id}`;
     try {
-      await api(`/api/action/${action.dataset.action}/${action.dataset.id}`, { method: 'POST' });
+      await api(url, { method: 'POST' });
       await load();
       toast('已更新');
+    } catch (error) {
+      toast(error.message);
+    }
+  }
+  if (reopenBtn) {
+    try {
+      await api('/api/season/reopen', { method: 'POST', body: JSON.stringify({ route: reopenBtn.dataset.reopenRoute }) });
+      await load();
+      toast('路线已复开');
     } catch (error) {
       toast(error.message);
     }
@@ -237,6 +379,34 @@ document.addEventListener('input', (event) => {
 });
 
 document.addEventListener('submit', async (event) => {
+  const seasonForm = event.target.closest('[data-season-form]');
+  if (seasonForm) {
+    event.preventDefault();
+    const kind = seasonForm.dataset.seasonForm;
+    const payload = Object.fromEntries(new FormData(seasonForm).entries());
+    try {
+      if (kind === 'seal') {
+        await api('/api/season/seal', { method: 'POST', body: JSON.stringify(payload) });
+      } else if (kind === 'recheck') {
+        payload.temperature = Number(payload.temperature);
+        payload.humidity = Number(payload.humidity);
+        payload.co2 = Number(payload.co2);
+        payload.measuredAt = new Date(payload.measuredAt).toISOString();
+        await api('/api/season/recheck', { method: 'POST', body: JSON.stringify(payload) });
+      } else if (kind === 'baseline') {
+        payload.baselineTemp = Number(payload.baselineTemp);
+        payload.baselineHumidity = Number(payload.baselineHumidity);
+        payload.baselineCo2 = Number(payload.baselineCo2);
+        await api('/api/season/revise-baseline', { method: 'POST', body: JSON.stringify(payload) });
+      }
+      seasonForm.reset();
+      await load();
+      toast('已提交');
+    } catch (error) {
+      toast(error.message);
+    }
+    return;
+  }
   const form = event.target.closest('[data-create]');
   if (!form) return;
   event.preventDefault();

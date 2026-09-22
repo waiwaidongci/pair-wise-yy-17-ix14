@@ -17,6 +17,24 @@
       "history": [
         { "at": "2026-06-14T08:00:00.000Z", "action": "创建", "note": "样点建档" }
       ]
+    },
+    {
+      "id": "site-seed-2",
+      "cave": "北麓三号洞",
+      "zone": "石笋廊区",
+      "pointCode": "S-02",
+      "route": "西线巡测",
+      "sensitivity": "中",
+      "protectedStatus": "常规观察",
+      "baselineTemp": 15.8,
+      "baselineHumidity": 90,
+      "baselineCo2": 640,
+      "note": "石笋密集区，游客止步栏内",
+      "createdAt": "2026-06-14T08:30:00.000Z",
+      "updatedAt": "2026-06-14T08:30:00.000Z",
+      "history": [
+        { "at": "2026-06-14T08:30:00.000Z", "action": "创建", "note": "样点建档" }
+      ]
     }
   ],
   "surveys": [
@@ -38,6 +56,48 @@
       "history": [
         { "at": "2026-06-18T10:00:00.000Z", "action": "创建", "note": "CO2升高并有干扰痕迹" }
       ]
+    },
+    {
+      "id": "survey-seed-2",
+      "siteId": "site-seed-1",
+      "surveyor": "沈宁",
+      "date": "2026-09-12",
+      "temperature": 16.4,
+      "humidity": 91,
+      "co2": 700,
+      "dripRate": 11,
+      "disturbance": "",
+      "photoUrl": "",
+      "status": "正常",
+      "reviewNote": "",
+      "createdAt": "2026-09-12T09:00:00.000Z",
+      "updatedAt": "2026-09-12T09:00:00.000Z",
+      "history": [
+        { "at": "2026-09-12T09:00:00.000Z", "action": "创建", "note": "季末巡测" }
+      ]
+    },
+    {
+      "id": "survey-seed-3",
+      "siteId": "site-seed-2",
+      "surveyor": "陆远",
+      "date": "2026-09-10",
+      "temperature": 15.9,
+      "humidity": 89,
+      "co2": 655,
+      "dripRate": 9,
+      "disturbance": "",
+      "photoUrl": "",
+      "status": "正常",
+      "reviewNote": "",
+      "createdAt": "2026-09-10T09:00:00.000Z",
+      "updatedAt": "2026-09-10T09:00:00.000Z",
+      "history": [
+        { "at": "2026-09-10T09:00:00.000Z", "action": "创建", "note": "季末巡测" }
+      ]
     }
-  ]
+  ],
+  "sealOrders": [],
+  "rechecks": [],
+  "calibrations": [],
+  "routeReopens": []
 }

@@ -1,24 +1,39 @@
 module.exports = {
   port: 3912,
-  title: '钟乳石洞穴微环境巡测',
-  lede: '围绕洞穴、分区、样点和巡测路线记录微环境数据，发现异常后生成复查闭环。',
+  title: '钟乳石洞穴季末封存与开季复开',
+  lede: '在微环境巡测闭环之上办理季末封存与开季复开：每样点每季仅一张封存单且并发只认首单；开季前路线内每点须两人隔24小时各测一次，超阈值只转待校准，整条路线不得复开；修订基准或撤回巡测即令原结论失效。',
   tones: {
     '常规观察': 'ok',
     '正常': 'ok',
     '已复查': 'ok',
+    '已封存': 'ok',
+    '复测合格': 'ok',
+    '已校准': 'ok',
+    '已复开': 'ok',
     '重点保护': 'warn',
+    '复测中': 'warn',
+    '待校准': 'warn',
+    '未复开': 'warn',
     '异常待复查': 'bad',
-    '暂停开放': 'bad'
+    '暂停开放': 'bad',
+    '已失效': 'bad',
+    '已撤回': 'bad'
   },
   collections: {
     sites: { label: '样点档案' },
-    surveys: { label: '巡测记录' }
+    surveys: { label: '巡测记录' },
+    sealOrders: { label: '封存单' },
+    rechecks: { label: '开季复测' },
+    calibrations: { label: '待校准' },
+    routeReopens: { label: '路线复开' }
   },
   stats: [
     { label: '样点', collection: 'sites' },
     { label: '重点保护', collection: 'sites', filter: { field: 'protectedStatus', value: '重点保护' } },
     { label: '巡测记录', collection: 'surveys' },
-    { label: '待复查', collection: 'surveys', filter: { field: 'status', value: '异常待复查' } }
+    { label: '待复查', collection: 'surveys', filter: { field: 'status', value: '异常待复查' } },
+    { label: '本季封存', collection: 'sealOrders', filter: { field: 'status', value: '已封存' } },
+    { label: '待校准', collection: 'calibrations', filter: { field: 'status', value: '待校准' } }
   ],
   views: [
     {
@@ -27,6 +42,11 @@ module.exports = {
       type: 'dashboard',
       focusTitle: '异常与复查',
       focus: { collection: 'surveys', field: 'status', values: ['异常待复查'], limit: 8 }
+    },
+    {
+      id: 'season',
+      label: '封存与复开',
+      type: 'season'
     },
     {
       id: 'sites',
@@ -69,7 +89,7 @@ module.exports = {
       searchPlaceholder: '搜索人员、干扰痕迹、照片',
       searchFields: ['surveyor', 'disturbance', 'photoUrl'],
       statusField: 'status',
-      statusOptions: ['正常', '异常待复查', '已复查'],
+      statusOptions: ['正常', '异常待复查', '已复查', '已撤回'],
       titleFields: ['surveyor', 'date'],
       relation: { collection: 'sites', localKey: 'siteId', labelFields: ['cave', 'zone', 'pointCode'] },
       summaryFields: ['disturbance', 'reviewNote'],
@@ -106,6 +126,7 @@ module.exports = {
         { target: 'related', field: 'protectedStatus', value: '重点保护' }
       ]
     },
-    { id: 'survey-review', label: '完成复查', collection: 'surveys', patches: [{ field: 'status', value: '已复查' }, { field: 'reviewNote', value: '异常已复核' }] }
+    { id: 'survey-review', label: '完成复查', collection: 'surveys', patches: [{ field: 'status', value: '已复查' }, { field: 'reviewNote', value: '异常已复核' }] },
+    { id: 'survey-withdraw', label: '撤回巡测', collection: 'surveys', danger: true, endpoint: '/api/season/withdraw-survey' }
   ]
 };
